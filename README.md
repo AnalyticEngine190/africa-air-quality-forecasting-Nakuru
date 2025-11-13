@@ -40,7 +40,8 @@ matplotlib: For all visualizations.
 Jupyter Notebook: For the analysis and final report.
 tqdm: For those awesome progress bars!
 pyarrow: For saving/loading the clean .feather file.
-▶️ How to Run This Project
+
+How to Run This Project
 Clone this repository.
 Go to the open.africa data source and download the .csv file. Place it in the project folder and name it Nakuru.csv.
 Create and activate a virtual environment.
