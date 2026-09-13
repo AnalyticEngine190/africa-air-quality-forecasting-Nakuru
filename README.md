@@ -1,56 +1,50 @@
-Forecasting Air Quality in Nakuru (An ARIMA Time Series Story)
+# 🌍 Forecasting Air Quality in Nakuru: Rebuilding an Old Project
 
-Hello! Welcome to my project. This was a complete, top-to-bottom data science challenge where I rebuilt one of my favorite projects from my CV: forecasting air quality in Africa.
-I started with a raw, messy .csv file and ended with a fully tuned, high-performance ARIMA model. This notebook is the story of that journey, showing how I battled messy data, found hidden patterns, and strategically built a model that works.
+When I first started learning data science, I built a baseline time-series model to forecast PM2.5 air pollution in Nakuru, Kenya. Looking back at that early notebook, I realized how much my approach to data engineering and machine learning had grown. 
 
-Data Source
-The data for this project was downloaded from open.africa (the sensors.AFRICA archive), a fantastic open-source platform for air quality data.
-Direct Link to Data: sensors.AFRICA Air Quality Archive - Nakuru (You can download it from Open Africa November 2025 Sensor Data Archive)
-Raw File Used: Nakuru.csv (downloaded from the source above)
+I decided to rebuild the entire project from scratch—not just to improve the final prediction score, but to replace brute-force shortcuts with proper statistical modeling and production-ready code.
 
-The Final Result 
-I'm thrilled with how this turned out. After all the cleaning and tuning, I built a final model that improved predictive performance by 26.2% over a simple baseline.
-Model
-MAE (Test Set)
-Improvement
-Baseline (Lag=1)
-10.74
--
-Final Tuned ARIMA(24, 0, 2)
-7.92
-26.2%
+### 📊 What Changed in Version 2.0?
 
-This project shows my ability to take a real-world problem and see it through, from identifying key patterns (like the 24-hour cycle) to building a robust model that delivers real, measurable improvements.
+In my original project, I ran into classic beginner roadblocks:
+* I dropped `temperature` and `humidity` to simplify the problem, focusing only on `P2` (PM2.5).
+* I averaged readings across the entire city, which mixed different microclimates together and created artificial noise.
+* To capture the 24-hour day/night cycle, I forced a high-order `ARIMA(24, 0, 2)` model. This forced the computer to calculate 26 individual parameters on a small dataset, which caused dozens of convergence warnings.
 
- My Project Journey (The "How-To")
+**How I rebuilt it:**
+1. **Multi-Variate Data:** Particulate matter doesn't move in a vacuum. I reshaped the dataset to keep localized temperature and humidity alongside PM2.5.
+2. **Station Isolation:** Instead of blending readings across Nakuru, I isolated the primary sensor station (Location 4000) to model real localized atmospheric dynamics.
+3. **Proper Seasonality:** Guided by PACF plots, I replaced the heavy 26-parameter ARIMA with a clean Seasonal SARIMAX: `(1, 0, 1) x (1, 0, 1, 24)`. This dropped the parameter count from 26 down to 4, completely eliminated optimization errors, and allowed the model to use weather data as exogenous features.
+4. **Machine Learning Benchmark:** I benchmarked classical SARIMAX against a modern tree-based regressor (LightGBM) using engineered lag and rolling window features.
 
-The complete, step-by-step analysis (with all my "Aha!" moments) is in the air-quality-analysis.ipynb notebook. Here’s the short story:
-Battling the Data: The raw .csv file was a mess! The first challenge was just loading it. I had to battle ParserErrors by figuring out the file used semicolons (;) as separators and commas (,) for decimals. I also found corrupt text (like "17.?5") that I had to handle.
-Preparing for Time Series: Once clean, I resampled the high-frequency data into stable 1-hour averages, converted the timezone to 'Africa/Nairobi', and made sure all my data types were correct.
-The "A-ha!" Moment: The big breakthrough came from plotting the ACF/PACF charts. The PACF plot showed a massive spike at lag 24. This wasn't a guess; it was a data-driven clue that the 24-hour daily cycle was the most powerful predictor.
-Strategic Tuning (Not Guessing!): Armed with that "lag 24" clue, I ran a targeted grid search to find the best model. The winner was ARIMA(24, 0, 2). This model is smart: it looks at the 24-hour cycle (p=24) and learns from its last two mistakes (q=2).
-Final Validation: To prove the model worked, I ran a robust Walk-Forward Validation (WFV). This simulates a real-world scenario and confirmed the model's power, giving us our final 26.2% improvement on unseen test data.
-️
-Tech Stack (The Tools)
-Python
-pandas: For all data wrangling and cleaning.
-statsmodels: For the ARIMA model and ACF/PACF statistical plots.
-scikit-learn: For the LinearRegression baseline and mean_absolute_error.
-matplotlib: For all visualizations.
-Jupyter Notebook: For the analysis and final report.
-tqdm: For those awesome progress bars!
-pyarrow: For saving/loading the clean .feather file.
+### 🏆 Model Comparison & Benchmarks
 
-How to Run This Project
-Clone this repository.
-Go to the open.africa data source and download the .csv file. Place it in the project folder and name it Nakuru.csv.
-Create and activate a virtual environment.
-Install all the required libraries:
-pip install -r requirements.txt
+All models were evaluated on unseen holdout test data using chronological splits and Walk-Forward Validation (WFV).
 
+| Model | Test MAE | Training / Run Time | Key Characteristic |
+| **Naive Baseline (Mean)** | ~17.18 | Instant | Simple average of training data |
+| **Seasonal SARIMAX (1,0,1)x(1,0,1)[24]** | **16.49** | ~5m 40s (144-step WFV) | Best overall accuracy & physical explainability |
+| **LightGBM Regressor** | **16.79** | < 0.05 seconds | Ultra-fast inference with engineered rolling features |
 
-Start Jupyter Notebook:
-jupyter notebook
+#### The Engineering Trade-off
+* **SARIMAX** was the winner for accuracy and interpretability. Its coefficients proved real atmospheric physics: temperature showed a statistically significant negative correlation ($p = 0.000$, heat disperses particles), while humidity showed a positive correlation ($p = 0.000$, moisture traps particles).
+* **LightGBM** was only 0.30 MAE behind, but finished in milliseconds rather than minutes. For a real-time IoT or edge device streaming sensor data, LightGBM is the obvious production choice.
 
+### 🔍 Project Walkthrough
 
-Open the air-quality-analysis.ipynb file and run the cells!
+1. **Data Cleaning:** Loaded raw sensor telemetry (`Nakuru.csv`), parsed European number formatting (semicolon separators and comma decimals), removed corrupt strings, and filtered out sensor errors (> 500 µg/m³).
+2. **Time-Series Structuring:** Converted timestamps to local time (`Africa/Nairobi`) and resampled to 1-hour intervals using time-weighted interpolation for smooth sensor gaps.
+3. **Exploratory Analysis:** Created hourly boxplots and ACF/PACF autocorrelation charts to prove the presence of the 24-hour diurnal cycle (morning traffic spikes and evening cooking patterns).
+4. **Walk-Forward Validation:** Evaluated SARIMAX over a 144-hour rolling window to test how the model behaves when forecasting one hour ahead in the real world.
+5. **Feature Engineering:** Built 1-hour lags, 24-hour seasonal lags, and 6-hour rolling means/standard deviations to train and benchmark LightGBM.
+
+### 🛠️ Tech Stack
+
+* **Language:** Python 3.10+
+* **Data Manipulation:** pandas, numpy
+* **Statistical Modeling:** statsmodels (SARIMAX, ACF/PACF)
+* **Machine Learning:** LightGBM, scikit-learn
+* **Data Visualization:** matplotlib, seaborn
+* **Utilities:** tqdm
+
+---
